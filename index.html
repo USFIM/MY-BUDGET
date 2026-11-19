@@ -372,7 +372,7 @@ function backupCard(){
   return '<div class="card" style="border:2px solid var(--warn)"><div style="font-weight:700">'+(fr?'Sauvegarde recommandée':'Back up your data')+'</div><div class="lbl" style="margin:4px 0 0">'+(lb?(fr?'Dernière sauvegarde : ':'Last backup: ')+lb+'. ':'')+(fr?'Utilise le bouton Sauvegarde en haut : il copie tes données, à coller dans Notes ou un e-mail.':'Tap Copy backup at the top: it copies your data, to paste into Notes or an email.')+'</div></div>';
 }
 function dueCard(){
-  var nx=shiftMonth(ymOf(new Date()),1),a=[];
+  var nx=shiftMonth(ui.ym,1),a=[];
   state.goals.forEach(function(g){var v=g.plan&&g.plan[nx];if(v>0)a.push({g:g,v:v});});
   if(!a.length)return '';
   var fr=lang()==='fr';
@@ -427,6 +427,11 @@ function txListHtml(){
   }).sort(function(a,b){return b.date.localeCompare(a.date)||b.id.localeCompare(a.id)});
   return t.length?'<div class="list">'+t.map(txRow).join('')+'</div>':'<div class="empty">'+(q?(fr?'Aucun résultat.':'No results.'):'Rien à afficher pour ce mois.')+'</div>';
 }
+function totalBalance(){
+  var t=+state.settings.startBal||0;
+  state.tx.forEach(function(x){t+=x.type==='in'?x.amount:-x.amount;});
+  return t;
+}
 function overBudgets(ym){
   var by={};monthTx(ym).filter(function(x){return x.type==='out'}).forEach(function(x){by[x.cat]=(by[x.cat]||0)+x.amount;});
   return CATS.filter(function(c){var l=+state.budgets[c.id]||0;return l&&(by[c.id]||0)>l}).map(function(c){return {c:c,sp:by[c.id],lim:+state.budgets[c.id]}});
@@ -443,7 +448,7 @@ function viewHome(){
   var bal=inc-out-sav,by={};
   t.filter(function(x){return x.type==='out'}).forEach(function(x){by[x.cat]=(by[x.cat]||0)+x.amount;});
   var data=Object.keys(by).map(function(k){return {id:k,v:by[k],c:cat(k).c,n:cat(k).n,en:cat(k).en}}).sort(function(a,b){return b.v-a.v});
-  var h='<div class="stack">'+backupCard()+alarmCard(ui.ym)+dueCard()+planMonthCard()+'<div class="card hero"><div class="lbl">Solde du mois</div><div class="big num">'+money(bal,true)+'</div>'+
+  var h='<div class="stack">'+backupCard()+alarmCard(ui.ym)+dueCard()+planMonthCard()+'<div class="card hero"><div class="lbl">Solde du mois</div><div class="big num" style="margin-bottom:6px">'+money(bal,true)+'</div><div class="lbl num" style="margin-bottom:14px">'+(lang()==='fr'?'Total (tous mois cumulés) : ':'Total (all months): ')+'<b style="color:#fff;font-size:15px">'+money(totalBalance(),true)+'</b></div>'+
    '<div class="row"><div class="mini"><div class="lbl">Revenus</div><div class="v num">'+moneyS(inc)+'</div></div><div class="mini"><div class="lbl">Dépenses</div><div class="v num">'+moneyS(out)+'</div></div><div class="mini"><div class="lbl">Épargne</div><div class="v num">'+moneyS(sav)+'</div></div></div></div>';
   h+='<div class="card"><h2 style="margin-bottom:12px">Où part l’argent</h2>';
   if(!data.length)h+='<div class="empty">Aucune dépense ce mois-ci.</div>';
@@ -500,11 +505,11 @@ function modeSeg(){
   return '<div class="seg" role="group" style="margin-bottom:0"><button data-mode="actual" type="button" aria-pressed="'+(ui.mode!=='plan')+'">'+(fr?'Réel':'Actual')+'</button><button data-mode="plan" type="button" aria-pressed="'+(ui.mode==='plan')+'">Plan</button></div>';
 }
 function planMonthCard(){
-  var nowYm=ymOf(new Date()),pl=0,paid=0;
+  var nowYm=ui.ym,pl=0,paid=0;
   state.goals.forEach(function(g){var v=g.plan&&g.plan[nowYm];if(v>0){pl+=v;paid+=Math.max(0,actualIn(g,nowYm));}});
   if(!pl)return '';
   var fr=lang()==='fr',rest=Math.max(0,pl-paid),pct=Math.min(100,paid/pl*100);
-  return '<div class="card"><div style="font-weight:700">'+(fr?'Plan du mois':'Plan of the month')+'</div><div class="lbl num" style="margin-top:6px">'+(fr?'Prévu ':'Planned ')+money(pl)+' · '+(fr?'Versé ':'Paid ')+money(paid)+'</div><div class="bar"><i class="'+(rest>0?'warn':'')+'" style="width:'+pct+'%"></i></div><div class="lbl num" style="margin-top:6px">'+(rest>0?'<span style="color:var(--bad);font-weight:700">'+(fr?'Reste à verser ':'Left to pay ')+money(rest)+'</span>':'<span style="color:var(--good);font-weight:700">'+(fr?'Objectif du mois atteint':'On track')+'</span>')+'</div></div>';
+  return '<div class="card"><div style="font-weight:700">'+(fr?'Plan : ':'Plan: ')+monthLabel(nowYm)+'</div><div class="lbl num" style="margin-top:6px">'+(fr?'Prévu ':'Planned ')+money(pl)+' · '+(fr?'Versé ':'Paid ')+money(paid)+'</div><div class="bar"><i class="'+(rest>0?'warn':'')+'" style="width:'+pct+'%"></i></div><div class="lbl num" style="margin-top:6px">'+(rest>0?'<span style="color:var(--bad);font-weight:700">'+(fr?'Reste à verser ':'Left to pay ')+money(rest)+'</span>':'<span style="color:var(--good);font-weight:700">'+(fr?'Objectif du mois atteint':'On track')+'</span>')+'</div></div>';
 }
 function savingsControls(){
   var fr=lang()==='fr',gs=state.goals.filter(function(g){return g.kind!=='loan'});
@@ -651,6 +656,7 @@ function viewSettings(){
   return '<div class="stack">'+
    '<div class="card"><h2 style="margin-bottom:10px">Langue</h2>'+seg('lang',[['en','English'],['fr','Français']],lang())+'</div>'+
    '<div class="card"><button class="btn ghost" data-tab="budgets" type="button">Budgets par catégorie</button></div>'+
+   '<div class="card"><h2 style="margin-bottom:6px">'+(lang()==='fr'?'Solde de départ':'Starting balance')+'</h2><div class="lbl" style="margin-bottom:8px">'+(lang()==='fr'?'Ce que tu avais sur ton compte avant ta première saisie. Le total part de là.':'What you had in your account before your first entry. The total starts from it.')+'</div><div class="f" style="margin:0"><input id="sb" type="number" inputmode="decimal" step="0.01" value="'+(state.settings.startBal||'')+'" placeholder="0"></div></div>'+
    '<div class="card"><h2 style="margin-bottom:10px">Devise</h2><div class="f"><label for="cur">Devise utilisée</label><select id="cur">'+cur.map(function(c){return '<option'+(c===state.currency?' selected':'')+'>'+c+'</option>'}).join('')+'</select></div>'+
    '<div class="f" style="margin:0"><label for="cur2">Autre devise (code de 1 à 5 lettres)</label><input id="cur2" type="text" maxlength="5" placeholder="Ex. TND" autocapitalize="characters"></div></div>'+
    '<div class="card"><h2 style="margin-bottom:10px">Affichage</h2><div class="f"><label>Thème</label>'+seg('theme-set',[['auto','Auto'],['light','Clair'],['dark','Sombre']],th)+'</div>'+
@@ -668,6 +674,8 @@ function render(){
   app.innerHTML=monthBar()+v;
   var d=document.getElementById('cur');
   if(d)d.onchange=function(){state.currency=d.value;scheduleSave();render();};
+  var sb=document.getElementById('sb');
+  if(sb)sb.onchange=function(){state.settings.startBal=parseFloat((sb.value||'0').replace(',','.'))||0;scheduleSave();render();};
   var d2=document.getElementById('cur2');
   if(d2)d2.onchange=function(){var v=d2.value.trim().toUpperCase();if(v){state.currency=v;scheduleSave();render();}};
 }
@@ -723,7 +731,7 @@ function budgetSheet(id){
 function goalSheet(id,kind){
   var g=id?state.goals.filter(function(x){return x.id===id})[0]:null;
   openSheet('<h2>'+(g?esc(g.name):(kind==='loan'?'Nouvel emprunt':'Nouvel objectif'))+'</h2>'+
-   (g?'':'<div class="f"><label for="gn">Nom</label><input id="gn" type="text" placeholder="Ex. Voyage, fonds d’urgence"></div>')+
+   '<div class="f"><label for="gn">Nom</label><input id="gn" type="text" value="'+esc(g?g.name:'')+'" placeholder="Ex. Voyage, fonds d’urgence"></div>'+
    '<div class="f"><label for="gt">'+(kind==='loan'||(g&&g.kind==='loan')?'Montant emprunté':'Montant visé')+' ('+state.currency+')</label><input id="gt" type="number" inputmode="decimal" min="0" value="'+(g?g.target:'')+'"></div>'+
    '<div class="f"><label for="gd">Date visée (facultatif)</label><input id="gd" type="month" value="'+esc(g&&g.due||'')+'"></div>'+
    '<div class="f"><label for="gm">Note</label><input id="gm" type="text" value="'+esc(g?g.note||'':'')+'" placeholder="Date, détails…"></div>'+
@@ -737,7 +745,7 @@ function goalSheet(id,kind){
     var q=function(s){return modal.querySelector(s)};
     if(b.id==='ok'){
       var tgt=parseFloat((q('#gt').value||'0').replace(',','.'))||0;
-      if(g){var sv=parseFloat((q('#ga').value||'0').replace(',','.'))||0,pay=parseFloat((q('#gp').value||'0').replace(',','.'))||0;g.target=tgt;g.saved=sv+pay;g.note=q('#gm').value.trim();g.due=q('#gd').value||'';}
+      if(g){var sv=parseFloat((q('#ga').value||'0').replace(',','.'))||0,pay=parseFloat((q('#gp').value||'0').replace(',','.'))||0;var nn=q('#gn').value.trim();if(nn)g.name=nn;g.target=tgt;g.saved=sv+pay;g.note=q('#gm').value.trim();g.due=q('#gd').value||'';}
       else{var nm=q('#gn').value.trim();if(!nm||!(tgt>0)){q('#gn').focus();return;}state.goals.push({id:uid(),kind:kind==='loan'?'loan':undefined,name:nm,target:tgt,saved:kind==='loan'?-tgt:0,note:q('#gm').value.trim(),due:q('#gd').value||''});}
       scheduleSave();closeSheet();render();
     }
